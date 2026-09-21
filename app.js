@@ -24,6 +24,8 @@ const resetDemo = document.getElementById("resetDemo");
 let scores = loadScores();
 let liveTimer = null;
 let pollTimer = null;
+let clockTimer = null;
+let stampSource = "";
 const barEls = {};
 const cardEls = {};
 
@@ -116,9 +118,21 @@ function refreshAllHeights() {
   }
 }
 
-function stamp(extra = "") {
+function stamp(extra) {
+  if (extra !== undefined) stampSource = extra || "";
   const base = `更新於 ${formatTime()}`;
-  updatedAt.textContent = extra ? `${base} · ${extra}` : base;
+  updatedAt.textContent = stampSource ? `${base} · ${stampSource}` : base;
+}
+
+function startClock() {
+  stopClock();
+  stamp();
+  clockTimer = setInterval(() => stamp(), 1000);
+}
+
+function stopClock() {
+  if (clockTimer) clearInterval(clockTimer);
+  clockTimer = null;
 }
 
 function flashDelta(target, delta) {
