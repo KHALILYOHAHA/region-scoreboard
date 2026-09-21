@@ -48,13 +48,12 @@ function saveScores() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(scores));
 }
 
+function pad2(n) {
+  return String(n).padStart(2, "0");
+}
+
 function formatTime(d = new Date()) {
-  return d.toLocaleString("zh-HK", {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false,
-  });
+  return `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
 }
 
 function maxScore() {
@@ -120,14 +119,27 @@ function refreshAllHeights() {
 
 function stamp(extra) {
   if (extra !== undefined) stampSource = extra || "";
-  const base = `更新於 ${formatTime()}`;
-  updatedAt.textContent = stampSource ? `${base} · ${stampSource}` : base;
+  const timeEl = document.getElementById("clockTime");
+  const sourceEl = document.getElementById("clockSource");
+  const timeText = formatTime();
+  if (timeEl) {
+    timeEl.textContent = timeText;
+    if (sourceEl) sourceEl.textContent = stampSource ? ` · ${stampSource}` : "";
+    if (updatedAt) updatedAt.setAttribute("datetime", new Date().toISOString());
+  } else if (updatedAt) {
+    const base = `更新於 ${timeText}`;
+    updatedAt.textContent = stampSource ? `${base} · ${stampSource}` : base;
+  }
+}
+
+function tickClock() {
+  stamp();
 }
 
 function startClock() {
   stopClock();
-  stamp();
-  clockTimer = setInterval(() => stamp(), 1000);
+  tickClock();
+  clockTimer = setInterval(tickClock, 250);
 }
 
 function stopClock() {
@@ -451,7 +463,8 @@ function setupEdit() {
 
 renderChart();
 renderCards();
-stamp(useSheets ? "等待 Sheets…" : "示範");
+stamp(useSheets ? "Google Sheets" : "示範");
+startClock(); // always tick
 setupEdit();
 
 if (editMode) {

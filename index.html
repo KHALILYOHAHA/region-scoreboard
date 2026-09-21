@@ -11,13 +11,13 @@
   <main class="wrap">
     <header class="header">
       <div class="title-block">
-        <p class="eyebrow">DRAFT · v0.5</p>
+        <p class="eyebrow">DRAFT · v0.6</p>
         <h1>地區計分表</h1>
         <p class="sub">上：直條圖 · 下：卡片 · 可接 Google Sheets</p>
       </div>
       <div class="live-block">
         <span class="live-pill" id="livePill"><span class="dot"></span>實時</span>
-        <time id="updatedAt">—</time>
+        <time id="updatedAt">更新於 <span id="clockTime">--:--:--</span><span id="clockSource"></span></time>
       </div>
     </header>
 
@@ -53,7 +53,7 @@
 
   <button type="button" id="openEdit" class="fab" hidden title="改分">✎</button>
 
-  <script src="config.js"></script>
-  <script src="app.js"></script>
+  <script src="config.js?v=0.6"></script>
+  <script src="app.js?v=0.6"></script>
 </body>
 </html>
