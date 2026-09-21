@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>地區計分表</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="bg"></div>
+  <main class="wrap">
+    <header class="header">
+      <div class="title-block">
+        <p class="eyebrow">DRAFT · v0.1</p>
+        <h1>地區計分表</h1>
+        <p class="sub">七個地區實時分數 · 排名暫不分先後</p>
+      </div>
+      <div class="live-block">
+        <span class="live-pill" id="livePill"><span class="dot"></span>實時</span>
+        <time id="updatedAt">—</time>
+      </div>
+    </header>
+
+    <section class="board" id="board" aria-label="地區分數"></section>
+
+    <footer class="footer">
+      <p>顯示順序固定為 A → G（暫不按分數排序）</p>
+      <p class="hint" id="editHint" hidden>編輯模式：改完分數會存入本機瀏覽器</p>
+    </footer>
+  </main>
+
+  <dialog id="editDialog" class="edit-dialog">
+    <form method="dialog" id="editForm">
+      <h2>手動改分</h2>
+      <div id="editFields"></div>
+      <div class="edit-actions">
+        <button type="submit" value="save" class="btn primary">儲存</button>
+        <button type="button" id="resetDemo" class="btn">重設示範分</button>
+        <button type="submit" value="cancel" class="btn ghost">關閉</button>
+      </div>
+    </form>
+  </dialog>
+
+  <button type="button" id="openEdit" class="fab" hidden title="改分">✎</button>
+
+  <script src="app.js"></script>
+</body>
+</html>
