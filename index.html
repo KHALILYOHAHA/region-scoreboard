@@ -11,9 +11,9 @@
   <main class="wrap">
     <header class="header">
       <div class="title-block">
-        <p class="eyebrow">DRAFT · v0.3</p>
+        <p class="eyebrow">DRAFT · v0.5</p>
         <h1>地區計分表</h1>
-        <p class="sub">上：直條圖 · 下：卡片 · 排名暫不分先後</p>
+        <p class="sub">上：直條圖 · 下：卡片 · 可接 Google Sheets</p>
       </div>
       <div class="live-block">
         <span class="live-pill" id="livePill"><span class="dot"></span>實時</span>
@@ -34,7 +34,7 @@
     </section>
 
     <footer class="footer">
-      <p>顯示順序固定為 A → G（暫不按分數排序）</p>
+      <p>顯示順序固定為 HKI → WTT（字母序，暫不按分數排序）</p>
       <p class="hint" id="editHint" hidden>編輯模式：改完分數會存入本機瀏覽器</p>
     </footer>
   </main>
@@ -53,6 +53,7 @@
 
   <button type="button" id="openEdit" class="fab" hidden title="改分">✎</button>
 
+  <script src="config.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

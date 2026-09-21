@@ -1,9 +1,14 @@
-const REGIONS = ["A", "B", "C", "D", "E", "F", "G"];
+const REGIONS = ["HKI", "KC", "KE", "KWS", "T&Y", "TNS", "WTT"];
 const STORAGE_KEY = "region-scoreboard-v1";
-const DEMO_SCORES = { A: 1280, B: 1150, C: 1320, D: 980, E: 1410, F: 1095, G: 1240 };
+const DEMO_SCORES = { HKI: 1280, KC: 1150, KE: 1320, KWS: 980, "T&Y": 1410, TNS: 1095, WTT: 1240 };
 
 const params = new URLSearchParams(location.search);
 const editMode = params.get("edit") === "1";
+const cfg = window.SCOREBOARD_CONFIG || {};
+const sheetId = String(params.get("sheet") || cfg.sheetId || "").trim();
+const sheetName = String(params.get("tab") || cfg.sheetName || "Scores").trim();
+const pollMs = Number(cfg.pollMs) > 1000 ? Number(cfg.pollMs) : 5000;
+const useSheets = Boolean(sheetId) && !editMode;
 
 const chartBoard = document.getElementById("chartBoard");
 const cardBoard = document.getElementById("cardBoard");
@@ -18,6 +23,7 @@ const resetDemo = document.getElementById("resetDemo");
 
 let scores = loadScores();
 let liveTimer = null;
+let pollTimer = null;
 const barEls = {};
 const cardEls = {};
 
@@ -69,7 +75,7 @@ function renderChart() {
       <div class="bar-track">
         <div class="bar" data-bar style="height:${barHeightPct(id)}%"></div>
       </div>
-      <div class="label">地區 ${id}<small>Region ${id}</small></div>
+      <div class="label">${id}</div>
     `;
     chartBoard.appendChild(col);
     barEls[id] = {
@@ -89,8 +95,7 @@ function renderCards() {
     card.dataset.region = id;
     card.innerHTML = `
       <div class="region">
-        <span class="region-name">地區 ${id}</span>
-        <span class="region-id">Region ${id}</span>
+        <span class="region-name">${id}</span>
       </div>
       <div class="score" data-score>${scores[id].toLocaleString("zh-HK")}</div>
       <div class="delta" data-delta></div>
@@ -111,8 +116,9 @@ function refreshAllHeights() {
   }
 }
 
-function stamp() {
-  updatedAt.textContent = `更新於 ${formatTime()}`;
+function stamp(extra = "") {
+  const base = `更新於 ${formatTime()}`;
+  updatedAt.textContent = extra ? `${base} · ${extra}` : base;
 }
 
 function flashDelta(target, delta) {
@@ -152,17 +158,155 @@ function setScore(id, value, delta = 0) {
   }
 
   refreshAllHeights();
-  stamp();
+}
+
+function applyScores(next, sourceLabel) {
+  for (const id of REGIONS) {
+    if (typeof next[id] !== "number" || !Number.isFinite(next[id])) continue;
+    const value = Math.max(0, Math.round(next[id]));
+    const delta = value - scores[id];
+    if (delta !== 0) setScore(id, value, delta);
+    else {
+      scores[id] = value;
+      if (barEls[id]) barEls[id].score.textContent = value.toLocaleString("zh-HK");
+      if (cardEls[id]) cardEls[id].score.textContent = value.toLocaleString("zh-HK");
+    }
+  }
+  refreshAllHeights();
+  stamp(sourceLabel || "");
+}
+
+function normalizeRegion(raw) {
+  if (raw == null) return "";
+  const s = String(raw).trim().toUpperCase().replace(/\s+/g, "");
+  // Exact match first (handles T&Y)
+  for (const id of REGIONS) {
+    if (s === id.toUpperCase() || s === id.toUpperCase().replace(/&/g, "")) return id;
+  }
+  // Allow "地區 HKI" / "Region KC"
+  for (const id of REGIONS) {
+    const key = id.toUpperCase();
+    if (s.includes(key) || s.includes(key.replace(/&/g, ""))) return id;
+  }
+  return "";
+}
+
+function parseSheetRows(rows) {
+  const next = {};
+  for (const row of rows) {
+    const keys = Object.keys(row);
+    let regionVal = null;
+    let scoreVal = null;
+    for (const k of keys) {
+      const lk = k.trim().toLowerCase();
+      if (
+        ["region", "地區", "區", "id", "區域"].includes(lk) ||
+        lk.includes("region") ||
+        lk.includes("地區")
+      ) {
+        regionVal = row[k];
+      }
+      if (
+        ["score", "分數", "分", "points", "pt"].includes(lk) ||
+        lk.includes("score") ||
+        lk.includes("分數")
+      ) {
+        scoreVal = row[k];
+      }
+    }
+    if (regionVal == null && keys[0]) regionVal = row[keys[0]];
+    if (scoreVal == null && keys[1]) scoreVal = row[keys[1]];
+    const id = normalizeRegion(regionVal);
+    const n = Number(String(scoreVal).replace(/,/g, ""));
+    if (id && Number.isFinite(n)) next[id] = n;
+  }
+  return next;
+}
+
+async function fetchFromOpensheet() {
+  const url = `https://opensheet.elk.sh/${encodeURIComponent(sheetId)}/${encodeURIComponent(sheetName)}`;
+  const res = await fetch(url, { cache: "no-store" });
+  if (!res.ok) throw new Error(`opensheet ${res.status}`);
+  const data = await res.json();
+  if (!Array.isArray(data)) throw new Error("opensheet: not an array");
+  return parseSheetRows(data);
+}
+
+async function fetchFromGviz() {
+  const url =
+    `https://docs.google.com/spreadsheets/d/${encodeURIComponent(sheetId)}/gviz/tq` +
+    `?tqx=out:json&sheet=${encodeURIComponent(sheetName)}`;
+  const res = await fetch(url, { cache: "no-store" });
+  if (!res.ok) throw new Error(`gviz ${res.status}`);
+  const text = await res.text();
+  const start = text.indexOf("{");
+  const end = text.lastIndexOf("}");
+  if (start < 0 || end < 0) throw new Error("gviz: bad payload");
+  const json = JSON.parse(text.slice(start, end + 1));
+  const table = json.table;
+  if (!table || !table.rows) throw new Error("gviz: no rows");
+  const cols = (table.cols || []).map((c) => (c.label || c.id || "").trim());
+  const rows = table.rows.map((r) => {
+    const obj = {};
+    (r.c || []).forEach((cell, i) => {
+      const key = cols[i] || `col${i}`;
+      obj[key] = cell ? (cell.v ?? cell.f ?? "") : "";
+    });
+    return obj;
+  });
+  return parseSheetRows(rows);
+}
+
+async function pullSheets() {
+  try {
+    let next;
+    try {
+      next = await fetchFromOpensheet();
+    } catch {
+      next = await fetchFromGviz();
+    }
+    const have = REGIONS.filter((id) => typeof next[id] === "number");
+    if (have.length === 0) {
+      livePill.classList.add("paused");
+      livePill.innerHTML = '<span class="dot"></span>Sheet 無資料';
+      stamp("Sheets 讀唔到地區");
+      return;
+    }
+    applyScores(next, "Google Sheets");
+    livePill.classList.remove("paused");
+    livePill.innerHTML = '<span class="dot"></span>Sheets';
+  } catch (err) {
+    console.error(err);
+    livePill.classList.add("paused");
+    livePill.innerHTML = '<span class="dot"></span>Sheet 失敗';
+    stamp("Sheets 連接失敗");
+  }
+}
+
+function startSheetsPoll() {
+  stopLive();
+  stopSheetsPoll();
+  livePill.classList.remove("paused");
+  livePill.innerHTML = '<span class="dot"></span>Sheets';
+  pullSheets();
+  pollTimer = setInterval(pullSheets, pollMs);
+}
+
+function stopSheetsPoll() {
+  if (pollTimer) clearInterval(pollTimer);
+  pollTimer = null;
 }
 
 function tickLive() {
   const id = REGIONS[Math.floor(Math.random() * REGIONS.length)];
   const delta = Math.floor(Math.random() * 8) + 1;
   setScore(id, scores[id] + delta, delta);
+  stamp("示範");
 }
 
 function startLive() {
   stopLive();
+  stopSheetsPoll();
   livePill.classList.remove("paused");
   livePill.innerHTML = '<span class="dot"></span>實時';
   liveTimer = setInterval(tickLive, 2800);
@@ -180,11 +324,12 @@ function setupEdit() {
   livePill.classList.add("paused");
   livePill.innerHTML = '<span class="dot"></span>編輯中（暫停自動加分）';
   stopLive();
+  stopSheetsPoll();
 
   editFields.innerHTML = REGIONS.map(
     (id) => `
     <div class="edit-row">
-      <label for="score-${id}">地區 ${id}</label>
+      <label for="score-${id}">${id}</label>
       <input id="score-${id}" name="${id}" type="number" min="0" step="1" value="${scores[id]}" />
     </div>`
   ).join("");
@@ -205,6 +350,7 @@ function setupEdit() {
       const input = document.getElementById(`score-${id}`);
       if (input) input.value = String(scores[id]);
     }
+    stamp("本機");
   });
 
   editForm.addEventListener("submit", (e) => {
@@ -217,12 +363,20 @@ function setupEdit() {
       if (Number.isFinite(n)) setScore(id, n, 0);
     }
     saveScores();
+    stamp("本機");
     editDialog.close();
   });
 }
 
 renderChart();
 renderCards();
-stamp();
+stamp(useSheets ? "等待 Sheets…" : "示範");
 setupEdit();
-if (!editMode) startLive();
+
+if (editMode) {
+  // edit mode pauses auto updates
+} else if (useSheets) {
+  startSheetsPoll();
+} else {
+  startLive();
+}
