@@ -1,11 +1,8 @@
-// Google Sheet settings — paste your spreadsheet ID below (from the Sheet URL).
-// Example URL: https://docs.google.com/spreadsheets/d/THIS_IS_THE_ID/edit
-// Sheet must be shared: Anyone with the link → Viewer
+// Google Sheet settings
+// Sheet URL: https://docs.google.com/spreadsheets/d/1tlM_00hqIflkMLRmARuwHeJ9rlIlcI9SZZhpZ5sucnQ/edit
+// Share: Anyone with the link → Viewer
 window.SCOREBOARD_CONFIG = {
-  // Leave empty to use demo/random mode until a sheet is connected.
-  sheetId: "",
-  // Tab name (exact match)
+  sheetId: "1tlM_00hqIflkMLRmARuwHeJ9rlIlcI9SZZhpZ5sucnQ",
   sheetName: "Scores",
-  // How often to refresh from Sheets (ms)
   pollMs: 5000,
 };
