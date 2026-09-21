@@ -223,20 +223,65 @@ function parseSheetRows(rows) {
   return next;
 }
 
-async function fetchFromOpensheet() {
-  const url = `https://opensheet.elk.sh/${encodeURIComponent(sheetId)}/${encodeURIComponent(sheetName)}`;
-  const res = await fetch(url, { cache: "no-store" });
-  if (!res.ok) throw new Error(`opensheet ${res.status}`);
-  const data = await res.json();
-  if (!Array.isArray(data)) throw new Error("opensheet: not an array");
-  return parseSheetRows(data);
+function bust(url) {
+  const join = url.includes("?") ? "&" : "?";
+  return `${url}${join}_ts=${Date.now()}`;
+}
+
+function parseCsv(text) {
+  const lines = text.replace(/^\uFEFF/, "").trim().split(/\r?\n/).filter(Boolean);
+  if (lines.length < 2) return [];
+  const split = (line) => {
+    const out = [];
+    let cur = "";
+    let q = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"') {
+        if (q && line[i + 1] === '"') {
+          cur += '"';
+          i++;
+        } else q = !q;
+      } else if (ch === "," && !q) {
+        out.push(cur);
+        cur = "";
+      } else cur += ch;
+    }
+    out.push(cur);
+    return out;
+  };
+  const headers = split(lines[0]).map((h) => h.trim());
+  return lines.slice(1).map((line) => {
+    const cells = split(line);
+    const obj = {};
+    headers.forEach((h, i) => {
+      obj[h] = (cells[i] ?? "").trim();
+    });
+    return obj;
+  });
+}
+
+async function fetchFromCsv() {
+  // Direct Google CSV — usually fresher than opensheet proxy cache
+  const url = bust(
+    `https://docs.google.com/spreadsheets/d/${encodeURIComponent(sheetId)}/gviz/tq` +
+      `?tqx=out:csv&sheet=${encodeURIComponent(sheetName)}`
+  );
+  const res = await fetch(url, { cache: "no-store", credentials: "omit" });
+  if (!res.ok) throw new Error(`csv ${res.status}`);
+  const text = await res.text();
+  if (/<!DOCTYPE html>/i.test(text) || /Sign in/i.test(text.slice(0, 200))) {
+    throw new Error("csv: not public");
+  }
+  return parseSheetRows(parseCsv(text));
 }
 
 async function fetchFromGviz() {
-  const url =
+  const url = bust(
     `https://docs.google.com/spreadsheets/d/${encodeURIComponent(sheetId)}/gviz/tq` +
-    `?tqx=out:json&sheet=${encodeURIComponent(sheetName)}`;
-  const res = await fetch(url, { cache: "no-store" });
+      `?tqx=out:json&sheet=${encodeURIComponent(sheetName)}`
+  );
+  const res = await fetch(url, { cache: "no-store", credentials: "omit" });
   if (!res.ok) throw new Error(`gviz ${res.status}`);
   const text = await res.text();
   const start = text.indexOf("{");
@@ -257,14 +302,30 @@ async function fetchFromGviz() {
   return parseSheetRows(rows);
 }
 
+async function fetchFromOpensheet() {
+  const url = bust(
+    `https://opensheet.elk.sh/${encodeURIComponent(sheetId)}/${encodeURIComponent(sheetName)}`
+  );
+  const res = await fetch(url, { cache: "no-store" });
+  if (!res.ok) throw new Error(`opensheet ${res.status}`);
+  const data = await res.json();
+  if (!Array.isArray(data)) throw new Error("opensheet: not an array");
+  return parseSheetRows(data);
+}
+
 async function pullSheets() {
   try {
     let next;
-    try {
-      next = await fetchFromOpensheet();
-    } catch {
-      next = await fetchFromGviz();
+    const errors = [];
+    for (const fn of [fetchFromCsv, fetchFromGviz, fetchFromOpensheet]) {
+      try {
+        next = await fn();
+        break;
+      } catch (e) {
+        errors.push(e);
+      }
     }
+    if (!next) throw errors[errors.length - 1] || new Error("all fetch failed");
     const have = REGIONS.filter((id) => typeof next[id] === "number");
     if (have.length === 0) {
       livePill.classList.add("paused");
