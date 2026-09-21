@@ -363,6 +363,8 @@ function startSheetsPoll() {
   stopSheetsPoll();
   livePill.classList.remove("paused");
   livePill.innerHTML = '<span class="dot"></span>Sheets';
+  stamp("Google Sheets");
+  startClock();
   pullSheets();
   pollTimer = setInterval(pullSheets, pollMs);
 }
@@ -384,6 +386,8 @@ function startLive() {
   stopSheetsPoll();
   livePill.classList.remove("paused");
   livePill.innerHTML = '<span class="dot"></span>實時';
+  stamp("示範");
+  startClock();
   liveTimer = setInterval(tickLive, 2800);
 }
 
@@ -400,6 +404,8 @@ function setupEdit() {
   livePill.innerHTML = '<span class="dot"></span>編輯中（暫停自動加分）';
   stopLive();
   stopSheetsPoll();
+  stamp("本機");
+  startClock();
 
   editFields.innerHTML = REGIONS.map(
     (id) => `
