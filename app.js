@@ -5,7 +5,8 @@ const DEMO_SCORES = { A: 1280, B: 1150, C: 1320, D: 980, E: 1410, F: 1095, G: 12
 const params = new URLSearchParams(location.search);
 const editMode = params.get("edit") === "1";
 
-const board = document.getElementById("board");
+const chartBoard = document.getElementById("chartBoard");
+const cardBoard = document.getElementById("cardBoard");
 const updatedAt = document.getElementById("updatedAt");
 const livePill = document.getElementById("livePill");
 const openEdit = document.getElementById("openEdit");
@@ -17,6 +18,7 @@ const resetDemo = document.getElementById("resetDemo");
 
 let scores = loadScores();
 let liveTimer = null;
+const barEls = {};
 const cardEls = {};
 
 function loadScores() {
@@ -47,8 +49,40 @@ function formatTime(d = new Date()) {
   });
 }
 
-function renderBoard() {
-  board.innerHTML = "";
+function maxScore() {
+  return Math.max(...REGIONS.map((id) => scores[id]), 1) * 1.12;
+}
+
+function barHeightPct(id) {
+  return Math.max(2, (scores[id] / maxScore()) * 100);
+}
+
+function renderChart() {
+  chartBoard.innerHTML = "";
+  for (const id of REGIONS) {
+    const col = document.createElement("div");
+    col.className = "bar-col";
+    col.dataset.region = id;
+    col.innerHTML = `
+      <div class="delta" data-delta></div>
+      <div class="score" data-score>${scores[id].toLocaleString("zh-HK")}</div>
+      <div class="bar-track">
+        <div class="bar" data-bar style="height:${barHeightPct(id)}%"></div>
+      </div>
+      <div class="label">地區 ${id}<small>Region ${id}</small></div>
+    `;
+    chartBoard.appendChild(col);
+    barEls[id] = {
+      col,
+      score: col.querySelector("[data-score]"),
+      bar: col.querySelector("[data-bar]"),
+      delta: col.querySelector("[data-delta]"),
+    };
+  }
+}
+
+function renderCards() {
+  cardBoard.innerHTML = "";
   for (const id of REGIONS) {
     const card = document.createElement("article");
     card.className = "card";
@@ -61,43 +95,67 @@ function renderBoard() {
       <div class="score" data-score>${scores[id].toLocaleString("zh-HK")}</div>
       <div class="delta" data-delta></div>
     `;
-    board.appendChild(card);
+    cardBoard.appendChild(card);
     cardEls[id] = {
       card,
       score: card.querySelector("[data-score]"),
       delta: card.querySelector("[data-delta]"),
     };
   }
-  stamp();
+}
+
+function refreshAllHeights() {
+  for (const id of REGIONS) {
+    const el = barEls[id];
+    if (el) el.bar.style.height = `${barHeightPct(id)}%`;
+  }
 }
 
 function stamp() {
   updatedAt.textContent = `更新於 ${formatTime()}`;
 }
 
+function flashDelta(target, delta) {
+  if (!target || delta === 0) return;
+  target.textContent = delta > 0 ? `+${delta}` : `${delta}`;
+  target.classList.toggle("down", delta < 0);
+  target.classList.add("show");
+  setTimeout(() => target.classList.remove("show"), 1200);
+}
+
 function setScore(id, value, delta = 0) {
   scores[id] = Math.max(0, Math.round(value));
-  const el = cardEls[id];
-  if (!el) return;
-  el.score.textContent = scores[id].toLocaleString("zh-HK");
-  el.score.classList.add("flash");
-  el.card.classList.add("bump");
-  setTimeout(() => {
-    el.score.classList.remove("flash");
-    el.card.classList.remove("bump");
-  }, 350);
+  const text = scores[id].toLocaleString("zh-HK");
 
-  if (delta !== 0) {
-    el.delta.textContent = delta > 0 ? `+${delta}` : `${delta}`;
-    el.delta.classList.toggle("down", delta < 0);
-    el.delta.classList.add("show");
-    setTimeout(() => el.delta.classList.remove("show"), 1200);
+  const bar = barEls[id];
+  if (bar) {
+    bar.score.textContent = text;
+    bar.score.classList.add("flash");
+    bar.col.classList.add("bump");
+    setTimeout(() => {
+      bar.score.classList.remove("flash");
+      bar.col.classList.remove("bump");
+    }, 350);
+    flashDelta(bar.delta, delta);
   }
+
+  const card = cardEls[id];
+  if (card) {
+    card.score.textContent = text;
+    card.score.classList.add("flash");
+    card.card.classList.add("bump");
+    setTimeout(() => {
+      card.score.classList.remove("flash");
+      card.card.classList.remove("bump");
+    }, 350);
+    flashDelta(card.delta, delta);
+  }
+
+  refreshAllHeights();
   stamp();
 }
 
 function tickLive() {
-  // Fixed order A→G; never sort by score. Random small bump on one region.
   const id = REGIONS[Math.floor(Math.random() * REGIONS.length)];
   const delta = Math.floor(Math.random() * 8) + 1;
   setScore(id, scores[id] + delta, delta);
@@ -163,6 +221,8 @@ function setupEdit() {
   });
 }
 
-renderBoard();
+renderChart();
+renderCards();
+stamp();
 setupEdit();
 if (!editMode) startLive();

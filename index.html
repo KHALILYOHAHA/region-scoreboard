@@ -11,9 +11,9 @@
   <main class="wrap">
     <header class="header">
       <div class="title-block">
-        <p class="eyebrow">DRAFT · v0.1</p>
+        <p class="eyebrow">DRAFT · v0.3</p>
         <h1>地區計分表</h1>
-        <p class="sub">七個地區實時分數 · 排名暫不分先後</p>
+        <p class="sub">上：直條圖 · 下：卡片 · 排名暫不分先後</p>
       </div>
       <div class="live-block">
         <span class="live-pill" id="livePill"><span class="dot"></span>實時</span>
@@ -21,7 +21,17 @@
       </div>
     </header>
 
-    <section class="board" id="board" aria-label="地區分數"></section>
+    <section class="section">
+      <h2 class="section-title">直條圖</h2>
+      <div class="chart-panel">
+        <div class="chart" id="chartBoard" aria-label="地區分數直條圖"></div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">卡片</h2>
+      <div class="cards" id="cardBoard" aria-label="地區分數卡片"></div>
+    </section>
 
     <footer class="footer">
       <p>顯示順序固定為 A → G（暫不按分數排序）</p>
